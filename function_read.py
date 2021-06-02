@@ -17,11 +17,10 @@ def lon_index(longitude, lon_bnds):
     #if longitude are in -180 move to 0 - 360
     lon_bnds=np.array(lon_bnds)
     lons=np.array(longitude, copy=True)
-    #print lons
+    #print('lons : ', lons)
     #print True in list(lons<0)
     if True in list(lons<0):
         lons[lons<0]=lons[lons<0]+360
-    #print lons
     #if indices in -180, 180 move to 0 -360
     
     if True in list(lon_bnds<0):
@@ -31,16 +30,20 @@ def lon_index(longitude, lon_bnds):
     
     #check if box is over separation (most of the time greenwitch pero sometimes longitude can be splitted somewhere else)
     #not done.... Problem for grid_T
-    if lon_bnds[0]>lon_bnds[1]:
+    if lon_bnds[0]>lon_bnds[1]-1:
         #return a list with index before greenwitch and indexes after
-        
-        lon_inds = [np.where((lons >= lon_bnds[0]))[0] , np.where((lons <= lon_bnds[1]))[0]]
+        #print('Details : ')
+        #print('1 : ', np.where((lons >= lon_bnds[0]))[0])
+        #print('2 : ', np.where((lons <= lon_bnds[1]))[0])
+        lon_inds = [np.where((lons >= lon_bnds[0]))[0] , np.where((lons < lon_bnds[1]))[0]]
+        #print(lon_inds)
         if list(lon_inds[1])==[]:
             lon_inds=[lon_inds[0]]
         if list(lon_inds[0])==[]:
             lon_inds=[lon_inds[1]]
     else:
         lon_inds = [np.where((lons >= lon_bnds[0]) & (lons <= lon_bnds[1]))[0]]
+    #print('lon_inds : ', lon_inds)
     return(lon_inds)
 
 def lonlat_index(latitude, longitude, lat_bnds, lon_bnds):
@@ -64,11 +67,11 @@ def lonlat_index(latitude, longitude, lat_bnds, lon_bnds):
         #print lons
     else:
         lon1D=np.array(longitude, copy=True)
-        
+    #print('lon1D : ', lon1D)
     lon_inds = lon_index(lon1D, lon_bnds)  
-    #print lon_inds 
+    #print(lon_inds) 
     
-    return(lat1D, lon1D, lat_inds, lon_inds)    
+    return(lat1D, lon1D, lat_inds, lon_inds)     
 
 def earth_radius(lat):
     '''
@@ -360,11 +363,17 @@ def ReadData(varname, modlst, sdatelst, nmon, lat_bnds, lon_bnds, mask, interp =
     return(MM, obs)
 
 
-
-
-def extract_array(varf, varname, nmon, lon_bnds, lat_bnds, level="all"):
-    
-    print(level)
+def extract_array(varf, varname, ntimesteps, lon_bnds, lat_bnds, start_time = 0, level="all"):
+    """
+    varf : np.array // tensors containing variables
+    varname : string // name of the variable we want to extract
+    ntimesteps : int // number of timesteps we want to extract (days for diary data, month for monthly data etc.)
+    lon_bnds : int list of lenght 2 [a,b] // 0<=a<b<360
+    lat_bnds : int list of lenght 2 [a,b] // -90<=a<b<90
+    start_time : int // time step where we want to start the extraction
+    level :    
+    """
+    #print('level : ', level)
     varfvar=varf.variables[varname]
     varlat=getvarlat(varf)
     varlon=getvarlon(varf)
@@ -374,17 +383,19 @@ def extract_array(varf, varname, nmon, lon_bnds, lat_bnds, level="all"):
     #print lons[0]
     #lat_inds = np.where((lats >= lat_bnds[0]) & (lats <= lat_bnds[1]))[0]
     #lon_inds = lon_index(lons, lon_bnds )
-    
+    #print('entering lonlat_index with lons : ', lons)
     lat1D, lon1D, lat_inds, lon_inds = lonlat_index(lats, lons, lat_bnds, lon_bnds)
     #print 
         #print(varf.variables[varname])
     try:
         unit=varf.variables[varname].units
     except:
-        defaultdic={"tos":"K","ts":"K", "tauuo":"N m**-2", "tauu":"N m**-2"}
+        defaultdic={"tos":"K","ts":"K", "sst":"K", "tauuo":"N m**-2", "tauu":"N m**-2"}
         unit=defaultdic.get(varname)
-        print("warning: unit not found in the file, set to default: "+unit)
-        
+        if unit != None:
+            print("warning: unit not found in the file, set to default: "+unit)
+        else:
+            print("warning: unit not found in the file, cannot set to default.")
     #print(unit)
     offsetdic={"Celsius_scale":0, "K":-273.15, "mm/day":0, "m s-1":0, "m s**-1":0, "m/s":0, 
                "Kelvin_scale":-273.15, "N m**-2 s":0, "degC":0, "N m**-2":0, "N/m2":0, 
@@ -405,7 +416,7 @@ def extract_array(varf, varname, nmon, lon_bnds, lat_bnds, level="all"):
         offset=0
     #print(scale, offset)
     ndim=len(varf.variables[varname].shape)
-    print(varf.variables[varname].shape)
+    #print(varf.variables[varname].shape)
     #if str(varf.variables[varname].dimensions[1])==getdimlat(varf, varname):
     #    varfvar=np.swapaxes(vararray,1,2)
     #print varfvar.shape
@@ -414,30 +425,30 @@ def extract_array(varf, varname, nmon, lon_bnds, lat_bnds, level="all"):
     if len(lon_inds)==2:
         if  ndim==5:
             if level!="all":
-                vararrayW=varfvar[0:nmon,:,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-                vararrayE=varfvar[0:nmon,:,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
+                vararrayW=varfvar[start_time:ntimesteps+start_time,:,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
+                vararrayE=varfvar[start_time:ntimesteps+start_time,:,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
                 #print unit,scaledic.get(unit),offsetdic.get(unit)
                 vararray=np.ma.concatenate((vararrayW, vararrayE), axis=3)*scale+offset
             else:
-                vararrayW=varfvar[0:nmon,:,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-                vararrayE=varfvar[0:nmon,:,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
+                vararrayW=varfvar[start_time:ntimesteps+start_time,:,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
+                vararrayE=varfvar[start_time:ntimesteps+start_time,:,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
                 #print unit,scaledic.get(unit),offsetdic.get(unit)
                 vararray=np.ma.concatenate((vararrayW, vararrayE), axis=4)*scale+offset
         elif ndim==4:
             if level!="all":
-                vararrayW=varfvar[0:nmon,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-                vararrayE=varfvar[0:nmon,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
+                vararrayW=varfvar[start_time:ntimesteps+start_time,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
+                vararrayE=varfvar[start_time:ntimesteps+start_time,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
                 #print unit,scaledic.get(unit),offsetdic.get(unit)
                 vararray=np.ma.concatenate((vararrayW, vararrayE), axis=2)*scale+offset
             else:
-                vararrayW=varfvar[0:nmon,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-                vararrayE=varfvar[0:nmon,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
+                vararrayW=varfvar[start_time:ntimesteps+start_time,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
+                vararrayE=varfvar[start_time:ntimesteps+start_time,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
                 #print unit,scaledic.get(unit),offsetdic.get(unit)
                 vararray=np.ma.concatenate((vararrayW, vararrayE), axis=3)*scale+offset
                 
         elif ndim==3:
-            vararrayW=varfvar[0:nmon,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-            vararrayE=varfvar[0:nmon,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
+            vararrayW=varfvar[start_time:ntimesteps+start_time,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
+            vararrayE=varfvar[start_time:ntimesteps+start_time,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
             vararray=np.ma.concatenate((vararrayW, vararrayE), axis=2)*scale+offset
             
             
@@ -463,309 +474,19 @@ def extract_array(varf, varname, nmon, lon_bnds, lat_bnds, level="all"):
                 #print(lon_inds[0])
         if ndim==5:
             if level!="all":
-                vararray=varfvar[0:nmon,:,level,lat_inds[0]:(lat_inds[-1]+1),
+                vararray=varfvar[start_time:ntimesteps+start_time,:,level,lat_inds[0]:(lat_inds[-1]+1),
                         lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
             else:
-                vararray=varfvar[0:nmon,:,:,lat_inds[0]:(lat_inds[-1]+1),
+                vararray=varfvar[start_time:ntimesteps+start_time,:,:,lat_inds[0]:(lat_inds[-1]+1),
                         lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
         if ndim==4:
             if level!="all":
-                print(varfvar.shape)
+                #print(varfvar.shape)
+                #print(lon_inds,lat_inds)
+                #print([ntimesteps,level,lat_inds[0],(lat_inds[-1]+1),lon_inds[0][0],(lon_inds[0][-1]+1)])
+                vararray=varfvar[start_time:ntimesteps+start_time,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
+            else:
                 print(lon_inds,lat_inds)
-                #print([nmon,level,lat_inds[0],(lat_inds[-1]+1),lon_inds[0][0],(lon_inds[0][-1]+1)])
-                vararray=varfvar[0:nmon,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
-            else:
-                vararray=varfvar[0:nmon,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
-        elif ndim==3:
-            vararray=varfvar[0:nmon,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
-        
-        #print lons
-        
-        
-        if len(lons.shape)==1:   
-            print("I am here")
-            print(len(lons.shape))
-            lons_reg=lons[lon_inds[0]]
-            lats_reg=lats[lat_inds]
-
-        elif len(lons.shape)==2:
-            lats_reg=lats[lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-            lons_reg=lons[lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-
-
-    print(vararray.shape)
-
-    return(vararray, lats_reg, lons_reg) 
-
-
-def extract_array2(varf, varname, ntimesteps, lon_bnds, lat_bnds, start_time = 0, level="all"):
-    """
-    varf : np.array // tensors containing variables
-    varname : string // name of the variable we want to extract
-    ntimesteps : int // number of timesteps we want to extract (days for diary data, month for monthly data etc.)
-    lon_bnds : int list of lenght 2 [a,b] // 0<=a<b<360
-    lat_bnds : int list of lenght 2 [a,b] // -90<=a<b<90
-    start_time : int // time step where we want to start the extraction
-    level :    
-    """
-    #print(level)
-    varfvar=varf.variables[varname]
-    varlat=getvarlat(varf)
-    varlon=getvarlon(varf)
-        
-    lats = varf.variables[varlat][:] 
-    lons = varf.variables[varlon][:]
-    #print lons[0]
-    #lat_inds = np.where((lats >= lat_bnds[0]) & (lats <= lat_bnds[1]))[0]
-    #lon_inds = lon_index(lons, lon_bnds )
-    
-    lat1D, lon1D, lat_inds, lon_inds = lonlat_index(lats, lons, lat_bnds, lon_bnds)
-    #print 
-        #print(varf.variables[varname])
-    try:
-        unit=varf.variables[varname].units
-    except:
-        defaultdic={"tos":"K","ts":"K", "tauuo":"N m**-2", "tauu":"N m**-2"}
-        unit=defaultdic.get(varname)
-        if unit != None:
-            print("warning: unit not found in the file, set to default: "+unit)
-        else:
-            print("warning: unit not found in the file, cannot set to default.")
-    #print(unit)
-    offsetdic={"Celsius_scale":0, "K":-273.15, "mm/day":0, "m s-1":0, "m s**-1":0, "m/s":0, 
-               "Kelvin_scale":-273.15, "N m**-2 s":0, "degC":0, "N m**-2":0, "N/m2":0, 
-              "m s**-1":0, "m/s":0, "m":0, "Pa":0}
-    scaledic={"Celsius_scale":1, "K":1, "mm/day":1,
-              "Kelvin_scale":1, "N m**-2 s":1./21600, "degC":1, "N m**-2":1, "N/m2":1, 
-              "m s**-1":86400*1000, "m/s":86400*1000,"m s-1":86400*1000, "m":1000, "Pa":1./100}
-    if varname in ["uas", "vas"]:
-        scaledic={"m s-1":1,"m s**-1":1, "m/s":1, "m s**-1":1}
-   
-
-    offset = offsetdic.get(unit)
-    scale=scaledic.get(unit)
-    
-    if scale==None:
-        scale=1
-    if offset==None:
-        offset=0
-    #print(scale, offset)
-    ndim=len(varf.variables[varname].shape)
-    print(varf.variables[varname].shape)
-    #if str(varf.variables[varname].dimensions[1])==getdimlat(varf, varname):
-    #    varfvar=np.swapaxes(vararray,1,2)
-    #print varfvar.shape
-    #print "lon inds", lon_inds
-    #print len(lon_inds)
-    if len(lon_inds)==2:
-        if  ndim==5:
-            if level!="all":
-                vararrayW=varfvar[start_time:ntimesteps+start_time,:,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-                vararrayE=varfvar[start_time:ntimesteps+start_time,:,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
-                #print unit,scaledic.get(unit),offsetdic.get(unit)
-                vararray=np.ma.concatenate((vararrayW, vararrayE), axis=3)*scale+offset
-            else:
-                vararrayW=varfvar[start_time:ntimesteps+start_time,:,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-                vararrayE=varfvar[start_time:ntimesteps+start_time,:,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
-                #print unit,scaledic.get(unit),offsetdic.get(unit)
-                vararray=np.ma.concatenate((vararrayW, vararrayE), axis=4)*scale+offset
-        elif ndim==4:
-            if level!="all":
-                vararrayW=varfvar[start_time:ntimesteps+start_time,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-                vararrayE=varfvar[start_time:ntimesteps+start_time,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
-                #print unit,scaledic.get(unit),offsetdic.get(unit)
-                vararray=np.ma.concatenate((vararrayW, vararrayE), axis=2)*scale+offset
-            else:
-                vararrayW=varfvar[start_time:ntimesteps+start_time,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-                vararrayE=varfvar[start_time:ntimesteps+start_time,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
-                #print unit,scaledic.get(unit),offsetdic.get(unit)
-                vararray=np.ma.concatenate((vararrayW, vararrayE), axis=3)*scale+offset
-                
-        elif ndim==3:
-            vararrayW=varfvar[start_time:ntimesteps+start_time,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-            vararrayE=varfvar[start_time:ntimesteps+start_time,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
-            vararray=np.ma.concatenate((vararrayW, vararrayE), axis=2)*scale+offset
-            
-            
-        if len(lons.shape)==1:    
-            lons_regW=lons[lon_inds[0]]
-            lons_regE=lons[lon_inds[1]]
-            lons_reg=np.ma.concatenate((lons_regW, lons_regE), axis=0)
-            lats_reg=lats[lat_inds]
-        elif len(lons.shape)==2:
-            lonsW=lons[lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-            lonsE=lons[lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
-
-            lons_reg=np.ma.concatenate((lonsW, lonsE), axis=1)
-            
-            latsW=lats[lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-            latsE=lats[lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
-            #print("I am here")
-            #print(latsW.shape, latsE.shape)
-            lats_reg=np.ma.concatenate((latsW, latsE), axis=1)
-            #print(lats_reg.shape)
-
-    else:
-                #print(lon_inds[0])
-        if ndim==5:
-            if level!="all":
-                vararray=varfvar[start_time:ntimesteps+start_time,:,level,lat_inds[0]:(lat_inds[-1]+1),
-                        lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
-            else:
-                vararray=varfvar[start_time:ntimesteps+start_time,:,:,lat_inds[0]:(lat_inds[-1]+1),
-                        lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
-        if ndim==4:
-            if level!="all":
-                #print(varfvar.shape)
-                #print(lon_inds,lat_inds)
-                #print([ntimesteps,level,lat_inds[0],(lat_inds[-1]+1),lon_inds[0][0],(lon_inds[0][-1]+1)])
-                vararray=varfvar[start_time:ntimesteps+start_time,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
-            else:
-                vararray=varfvar[start_time:ntimesteps+start_time,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
-        elif ndim==3:
-            vararray=varfvar[start_time:ntimesteps+start_time,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
-        
-        #print lons9.44473297e+21
-        
-        
-        if len(lons.shape)==1:   
-            #print("I am here")
-            #print(len(lons.shape))
-            lons_reg=lons[lon_inds[0]]
-            lats_reg=lats[lat_inds]
-
-        elif len(lons.shape)==2:
-            lats_reg=lats[lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-            lons_reg=lons[lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-
-
-    #print('vararray shape : ',vararray.shape)
-
-    return(vararray, lats_reg, lons_reg)
-
-def extract_array3(varf, varname, ntimesteps, lat_bnds, lon_bnds, start_time = 0, level="all"):
-    """
-    varf : np.array // tensors containing variables
-    varname : string // name of the variable we want to extract
-    ntimesteps : int // number of timesteps we want to extract (days for diary data, month for monthly data etc.)
-    lon_bnds : int list of lenght 2 [a,b] // 0<=a<b<360
-    lat_bnds : int list of lenght 2 [a,b] // -90<=a<b<90
-    start_time : int // time step where we want to start the extraction
-    level :    
-    """
-    #print(level)
-    varfvar=varf.variables[varname]
-    varlat=getvarlat(varf)
-    varlon=getvarlon(varf)
-        
-    lats = varf.variables[varlat][:] 
-    lons = varf.variables[varlon][:]
-    #print lons[0]
-    #lat_inds = np.where((lats >= lat_bnds[0]) & (lats <= lat_bnds[1]))[0]
-    #lon_inds = lon_index(lons, lon_bnds )
-    
-    lat1D, lon1D, lat_inds, lon_inds = lonlat_index(lats, lons, lat_bnds, lon_bnds)
-    #print 
-        #print(varf.variables[varname])
-    try:
-        unit=varf.variables[varname].units
-    except:
-        defaultdic={"tos":"K","ts":"K", "tauuo":"N m**-2", "tauu":"N m**-2"}
-        unit=defaultdic.get(varname)
-        if unit != None:
-            print("warning: unit not found in the file, set to default: "+unit)
-        else:
-            print("warning: unit not found in the file, cannot set to default.")
-    #print(unit)
-    offsetdic={"Celsius_scale":0, "K":-273.15, "mm/day":0, "m s-1":0, "m s**-1":0, "m/s":0, 
-               "Kelvin_scale":-273.15, "N m**-2 s":0, "degC":0, "N m**-2":0, "N/m2":0, 
-              "m s**-1":0, "m/s":0, "m":0, "Pa":0}
-    scaledic={"Celsius_scale":1, "K":1, "mm/day":1,
-              "Kelvin_scale":1, "N m**-2 s":1./21600, "degC":1, "N m**-2":1, "N/m2":1, 
-              "m s**-1":86400*1000, "m/s":86400*1000,"m s-1":86400*1000, "m":1000, "Pa":1./100}
-    if varname in ["uas", "vas"]:
-        scaledic={"m s-1":1,"m s**-1":1, "m/s":1, "m s**-1":1}
-   
-
-    offset = offsetdic.get(unit)
-    scale=scaledic.get(unit)
-    
-    if scale==None:
-        scale=1
-    if offset==None:
-        offset=0
-    #print(scale, offset)
-    ndim=len(varf.variables[varname].shape)
-    print(varf.variables[varname].shape)
-    #if str(varf.variables[varname].dimensions[1])==getdimlat(varf, varname):
-    #    varfvar=np.swapaxes(vararray,1,2)
-    #print varfvar.shape
-    #print "lon inds", lon_inds
-    #print len(lon_inds)
-    if len(lon_inds)==2:
-        if  ndim==5:
-            if level!="all":
-                vararrayW=varfvar[start_time:ntimesteps+start_time,:,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-                vararrayE=varfvar[start_time:ntimesteps+start_time,:,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
-                #print unit,scaledic.get(unit),offsetdic.get(unit)
-                vararray=np.ma.concatenate((vararrayW, vararrayE), axis=3)*scale+offset
-            else:
-                vararrayW=varfvar[start_time:ntimesteps+start_time,:,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-                vararrayE=varfvar[start_time:ntimesteps+start_time,:,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
-                #print unit,scaledic.get(unit),offsetdic.get(unit)
-                vararray=np.ma.concatenate((vararrayW, vararrayE), axis=4)*scale+offset
-        elif ndim==4:
-            if level!="all":
-                vararrayW=varfvar[start_time:ntimesteps+start_time,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-                vararrayE=varfvar[start_time:ntimesteps+start_time,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
-                #print unit,scaledic.get(unit),offsetdic.get(unit)
-                vararray=np.ma.concatenate((vararrayW, vararrayE), axis=2)*scale+offset
-            else:
-                vararrayW=varfvar[start_time:ntimesteps+start_time,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-                vararrayE=varfvar[start_time:ntimesteps+start_time,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
-                #print unit,scaledic.get(unit),offsetdic.get(unit)
-                vararray=np.ma.concatenate((vararrayW, vararrayE), axis=3)*scale+offset
-                
-        elif ndim==3:
-            vararrayW=varfvar[start_time:ntimesteps+start_time,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-            vararrayE=varfvar[start_time:ntimesteps+start_time,lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
-            vararray=np.ma.concatenate((vararrayW, vararrayE), axis=2)*scale+offset
-            
-            
-        if len(lons.shape)==1:    
-            lons_regW=lons[lon_inds[0]]
-            lons_regE=lons[lon_inds[1]]
-            lons_reg=np.ma.concatenate((lons_regW, lons_regE), axis=0)
-            lats_reg=lats[lat_inds]
-        elif len(lons.shape)==2:
-            lonsW=lons[lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-            lonsE=lons[lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
-
-            lons_reg=np.ma.concatenate((lonsW, lonsE), axis=1)
-            
-            latsW=lats[lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]
-            latsE=lats[lat_inds[0]:(lat_inds[-1]+1),lon_inds[1][0]:(lon_inds[1][-1]+1)]
-            #print("I am here")
-            #print(latsW.shape, latsE.shape)
-            lats_reg=np.ma.concatenate((latsW, latsE), axis=1)
-            #print(lats_reg.shape)
-
-    else:
-                #print(lon_inds[0])
-        if ndim==5:
-            if level!="all":
-                vararray=varfvar[start_time:ntimesteps+start_time,:,level,lat_inds[0]:(lat_inds[-1]+1),
-                        lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
-            else:
-                vararray=varfvar[start_time:ntimesteps+start_time,:,:,lat_inds[0]:(lat_inds[-1]+1),
-                        lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
-        if ndim==4:
-            if level!="all":
-                #print(varfvar.shape)
-                #print(lon_inds,lat_inds)
-                #print([ntimesteps,level,lat_inds[0],(lat_inds[-1]+1),lon_inds[0][0],(lon_inds[0][-1]+1)])
-                vararray=varfvar[start_time:ntimesteps+start_time,level,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
-            else:
                 vararray=varfvar[start_time:ntimesteps+start_time,:,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
         elif ndim==3:
             vararray=varfvar[start_time:ntimesteps+start_time,lat_inds[0]:(lat_inds[-1]+1),lon_inds[0][0]:(lon_inds[0][-1]+1)]*scale+offset
