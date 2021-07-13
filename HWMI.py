@@ -224,6 +224,7 @@ def calc_HWMIyear(target, cross_valid, percent_thresh, duration_min):
     """
 
     (nyear,nday,nmemb) = target.shape
+    sstMeanarrayyear = np.mean(target, axis=1)
     HWlstmembyear, HWstartmembyear, HWendmembyear, ecdfmax, ndaysexed_percentile, DD_threshold, subHWarrayyear = find_subHW(target, percent_thresh=percent_thresh, duration_min=duration_min, cross_valid=cross_valid)
     HWMIyear = []
     HWlstyear = []
@@ -247,4 +248,4 @@ def calc_HWMIyear(target, cross_valid, percent_thresh, duration_min):
         HWlstyear.append(HWlstfit)
         fitsubHWarrayyear[iyear, :, :] = fitsubHWarray
         
-    return(HWMIyear, HWlstyear, HWstartmembyear, HWendmembyear, ndaysexed_percentile, DD_threshold, subHWarrayyear, fitsubHWarrayyear, count_impossible_fit)
+    return(HWMIyear, HWlstyear, HWstartmembyear, HWendmembyear, ndaysexed_percentile, DD_threshold, subHWarrayyear, fitsubHWarrayyear, sstMeanarrayyear, count_impossible_fit)
