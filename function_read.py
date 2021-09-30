@@ -104,9 +104,11 @@ def earth_radius(lat):
     return r
 
 def area_av(array, pos_lat, pos_lon, lats, lons, opt="mean", weightcalc=True, weights2D=None):
-    lons[lons>180]=lons[lons>180]-360
+    lons[lons>=180]=lons[lons>=180]-360
     dim=array.shape
+    #print('dim : ', dim)
     if weightcalc:
+        #print('lons : ',lons)
         weights2D = area_grid(lats, lons)
     #weights=np.swapaxes(extend_table(area_grid(lats, lons), np.delete(np.delete(dim, pos_lon), pos_lat), len(dim)-1, pos_lat))
     weights=extend_table(weights2D, np.delete(np.delete(dim, pos_lon), pos_lat))
@@ -144,15 +146,18 @@ def area_grid(lat, lon):
     from numpy import meshgrid, abs, deg2rad, rad2deg, gradient, cos, sin
     from xarray import DataArray
     
-    lon[lon>180]=lon[lon>180]-360
+    lon[lon>=180.0]=lon[lon>=180.0]-360
 
     xlon, ylat = meshgrid(lon, lat)
     #R = earth_radius(ylat)
     R=6378137
     dlat = abs(deg2rad(gradient(ylat, axis=0)))
-    dlon = abs(deg2rad(gradient(xlon, axis=1)))
-
-    if np.any(dlon>300):
+    #print('xlon : ', xlon)
+    #print('gradient(xlon, axis=1) : ', gradient(xlon, axis=1))
+    #dlon = abs(deg2rad(gradient(xlon, axis=1)))
+    dlon = abs(deg2rad(gradient(xlon%360, axis=1)))
+    
+    if np.any(dlon>(300*3.14/180)):
         print("issue with jumps in longitude")
         sys.exit(1)
 
@@ -177,39 +182,6 @@ def area_grid(lat, lon):
 #obsreg=obs
 #modreg=mod
 
-def area_av_old(array, pos_lat, pos_lon, lats, lons, opt="mean"):
-
-    # Use the cosine of the converted latitudes as weights for the average
-    
-    
-    # First find the zonal mean SST by averaging along the latitude circles
-    
-    dlon=list(lons[1:]-lons[:-1])
-    dlon.append(lons[-2]-lons[-1])
-    dlat=list(lats[1:]-lats[:-1])
-    dlat.append(lats[-2]-lats[-1])
-
-    dlon=np.array(dlon)%360
-    dlat=np.array(dlat)
-
-    
-    #extend the lats, and cos over all the dimensions
-    dim=array.shape   
-    dlon_ext=np.swapaxes(extend_table(dlon, np.delete(dim, pos_lon)), len(dim)-1, pos_lon)
-    dlat_ext=np.swapaxes(extend_table(dlat, np.delete(dim, pos_lat)), len(dim)-1, pos_lat)
-    coslat_ext=np.swapaxes(extend_table(np.cos(lats*math.pi/180), np.delete(dim, pos_lat)), len(dim)-1, pos_lat)
-                  
-    #create a weighted array 
-    weights=ma.array(dlon_ext*dlat_ext*coslat_ext, mask=array.mask)
-    #print weights
-    
-    #make the weighted sum
-    if opt=="mean":
-        sumweigth=np.ma.sum(np.ma.sum(weights, axis=pos_lon),pos_lat)
-        array_av = np.ma.sum(np.ma.sum(weights*array, axis=pos_lon),pos_lat)/sumweigth
-    if opt=="sum":
-        array_av = np.ma.sum(np.ma.sum(weights*array, axis=pos_lon),pos_lat)
-    return(array_av)
     
 def createdatelst(sdate1, sdate2, smonlstint):
     sdatelst=[]
@@ -416,7 +388,7 @@ def extract_array(varf, varname, ntimesteps, lon_bnds, lat_bnds, start_time = 0,
         offset=0
     #print(scale, offset)
     ndim=len(varf.variables[varname].shape)
-    #print(varf.variables[varname].shape)
+    #print('varf.variables[varname].shape : ', varf.variables[varname].shape)
     #if str(varf.variables[varname].dimensions[1])==getdimlat(varf, varname):
     #    varfvar=np.swapaxes(vararray,1,2)
     #print varfvar.shape
