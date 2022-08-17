@@ -1,0 +1,30 @@
+name: heatwaves
+channels:
+- conda-forge
+# - defaults
+dependencies:
+- pip
+- python
+# data fetch
+- cdsapi
+# visualisation
+- matplotlib
+- basemap
+# data analysis
+- netCDF4
+- joblib
+# - python-cdo # pip install cdo
+# - cdo # avoidable if possible
+# Service client
+- jupyterlab
+- birdy
+- scipy
+
+
+
+# - pywps>=4.5.1,<4.6
+# - jinja2
+# - click
+# - psutil
+# tests
+# - pytest
